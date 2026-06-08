@@ -134,6 +134,8 @@ def latest_signal(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
         return None
     if not np.isfinite(lam[i]) or lam[i] <= LAM_MIN:
         return None
+    if lam[i] <= lam[i - 1]:        # lam YÜKSELİYOR (test_ignition: +0.100→+0.123, OOS +0.137;
+        return None                 # lam-düşüyor=sönen kaskad, avgR +0.007 ~ölü)
     fresh = (vr[i] < 1.0) if np.isfinite(vr[i]) else False
     if not (fresh or lam[i] >= LAM_EXEMPT):
         return None
@@ -144,8 +146,8 @@ def latest_signal(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
     vr_i = float(vr[i]) if np.isfinite(vr[i]) else 1.0
     yon = "LONG" if d == 1 else "SHORT"
     why = "VR<1 taze-ateşleme" if fresh else "lam≥2.2 balina-istisna"
-    reason = "Donchian-20 kırılım · lam=%.2f (%s) · %s → %s" % (
-        lam[i], "yüksek-kaskad" if lam[i] >= LAM_EXEMPT else "kaskad", why, yon)
+    reason = "Donchian-20 kırılım · lam=%.2f↑ (%s) · %s → %s" % (
+        lam[i], "yüksek-kaskad" if lam[i] >= LAM_EXEMPT else "yükselen-kaskad", why, yon)
     return Signal(symbol, d, float(entry), float(sl), float(tp), float(lam[i]),
                   str(df.index[i]), vr_i, reason)
 
