@@ -112,6 +112,8 @@ class Signal:
     tp: float
     lam: float
     ts: str
+    vr: float = 1.0       # variance ratio (giriş anı)
+    reason: str = ""      # GEREKÇE: neden girildi (lam/VR/yön)
 
 
 def latest_signal(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
@@ -139,8 +141,13 @@ def latest_signal(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
     risk = SL_ATR * (a[i] if a[i] > 0 else entry * 0.01)
     sl = entry - d * risk
     tp = entry + d * TP_R * risk
+    vr_i = float(vr[i]) if np.isfinite(vr[i]) else 1.0
+    yon = "LONG" if d == 1 else "SHORT"
+    why = "VR<1 taze-ateşleme" if fresh else "lam≥2.2 balina-istisna"
+    reason = "Donchian-20 kırılım · lam=%.2f (%s) · %s → %s" % (
+        lam[i], "yüksek-kaskad" if lam[i] >= LAM_EXEMPT else "kaskad", why, yon)
     return Signal(symbol, d, float(entry), float(sl), float(tp), float(lam[i]),
-                  str(df.index[i]))
+                  str(df.index[i]), vr_i, reason)
 
 
 def conviction_risk(lam: float, base_risk: float, max_risk: float) -> float:
@@ -208,6 +215,10 @@ class Position:
     qty: float
     risk_amount: float
     opened_ts: str
+    lam: float = 1.0
+    vr: float = 1.0
+    reason: str = ""
+    risk_pct: float = 0.0
 
 
 class Portfolio:
@@ -259,13 +270,32 @@ class Portfolio:
         if exit_p is None:
             return None
         sl_dist = abs(p.entry - p.sl) / p.entry
-        R = (p.direction * (exit_p - p.entry) / p.entry) / sl_dist - RT_COST_PRICE / sl_dist
+        gross_R = (p.direction * (exit_p - p.entry) / p.entry) / sl_dist
+        fee_R = RT_COST_PRICE / sl_dist
+        R = gross_R - fee_R
         pnl = p.risk_amount * R
+        fee_usd = p.risk_amount * fee_R
+        pct = p.direction * (exit_p - p.entry) / p.entry * 100        # fiyat % değişim (yön)
+        exit_type = "TP" if abs(exit_p - p.tp) < 1e-9 else ("SL" if abs(exit_p - p.sl) < 1e-9 else "KAPANIŞ")
+        try:
+            bars = int((pd.Timestamp(ts) - pd.Timestamp(p.opened_ts)).total_seconds() // (4 * 3600))
+        except Exception:
+            bars = 0
         self.equity += pnl
-        rec = dict(symbol=sym, R=round(R, 3), pnl=round(pnl, 2), exit=exit_p,
-                   entry=p.entry, dir=p.direction, opened=p.opened_ts, closed=ts,
-                   equity=round(self.equity, 2))
+        rec = dict(symbol=sym, dir=p.direction, yon=("LONG" if p.direction == 1 else "SHORT"),
+                   entry=round(p.entry, 6), exit=round(exit_p, 6), sl=round(p.sl, 6), tp=round(p.tp, 6),
+                   pct=round(pct, 2), R=round(R, 3), pnl=round(pnl, 2), fee=round(fee_usd, 2),
+                   exit_type=exit_type, bars=bars, lam=round(p.lam, 2), vr=round(p.vr, 2),
+                   risk_pct=round(p.risk_pct * 100, 3), reason=p.reason,
+                   opened=p.opened_ts, closed=ts, equity=round(self.equity, 2))
         self.closed.append(rec)
+        # KALICI TAM GEÇMİŞ (kesilmez) — sonradan analiz/geliştirme için
+        try:
+            base = self.cfg.state_file.replace("_state.json", "")
+            with open(base + "_trades.jsonl", "a") as f:
+                f.write(json.dumps(rec) + "\n")
+        except Exception:
+            pass
         del self.positions[sym]
         return rec
 
@@ -280,7 +310,7 @@ class Portfolio:
             return None
         qty = risk_amount / sl_dist_price
         p = Position(sig.symbol, sig.direction, sig.entry, sig.sl, sig.tp,
-                     qty, risk_amount, sig.ts)
+                     qty, risk_amount, sig.ts, sig.lam, sig.vr, sig.reason, risk_pct)
         self.positions[sig.symbol] = p
         return p
 
@@ -289,7 +319,7 @@ class Portfolio:
         data = dict(equity=self.equity, vault=self.vault, baseline=self.baseline,
                     cur_month=self.cur_month, payouts=self.payouts, passed=self.passed,
                     positions={k: asdict(v) for k, v in self.positions.items()},
-                    closed=self.closed[-200:],
+                    closed=self.closed[-500:],
                     risk=dict(start=self.risk.start, peak=self.risk.peak,
                               day_start=self.risk.day_start, cur_day=self.risk.cur_day,
                               day_halted=self.risk.day_halted))
