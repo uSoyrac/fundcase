@@ -11,7 +11,6 @@ Edge (falsify.py + monte_carlo.py ile doğrulanmış, OOS-sağlam):
 Bu dosya SAF mantıktır (ağ yok): indikatörler, sinyal, sizing, risk, paper-portföy.
 Canlı veri/emir botlarda (sprint_bot.py / prop_bot.py). Matematik falsify.py ile AYNI.
 """
-from __future__ import annotations
 import json, math, os
 from dataclasses import dataclass, field, asdict
 from typing import Optional
@@ -181,7 +180,7 @@ class RiskEngine:
             return f"TOPLAM kill-switch (−%{c.total_dd*100:.0f})"
         return None
 
-    def can_enter(self, equity: float) -> tuple[bool, str]:
+    def can_enter(self, equity):   # -> (bool, str)
         if self.day_halted:
             return False, "gün durduruldu"
         if self.intraday_halt(equity):
@@ -216,14 +215,14 @@ class Portfolio:
     def __init__(self, cfg: BotConfig, start_equity: float):
         self.cfg = cfg
         self.equity = start_equity
-        self.positions: dict[str, Position] = {}
-        self.closed: list[dict] = []
+        self.positions = {}
+        self.closed = []
         self.risk = RiskEngine(cfg, start_equity)
         # funded payout takibi
         self.vault = 0.0                 # çekilen toplam payout (korunaklı)
         self.baseline = start_equity     # ay başı referansı
         self.cur_month = None
-        self.payouts: list[dict] = []
+        self.payouts = []
         self.passed = False              # eval: hedef geçildi mi
 
     def check_payout(self):

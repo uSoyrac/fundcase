@@ -51,14 +51,15 @@ def main():
     n_trades = 0
     if "--trades" in sys.argv:
         n_trades = int(sys.argv[sys.argv.index("--trades") + 1])
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    here = os.path.dirname(os.path.abspath(__file__))
+    roots = [here, os.path.dirname(here), os.getcwd()]   # düz VEYA deploy/ yapısı
     print("=" * 70)
     print(f"  TIRAD DURUM RAPORU · {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC")
     print("=" * 70)
     found = False
     for fname, label in BOTS.items():
-        path = os.path.join(root, fname)
-        if os.path.exists(path):
+        path = next((os.path.join(r, fname) for r in roots if os.path.exists(os.path.join(r, fname))), None)
+        if path:
             found = True
             try:
                 summarize(path, label, n_trades)
