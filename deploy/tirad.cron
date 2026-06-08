@@ -1,0 +1,5 @@
+# TIRAD botları — her 4H bar kapanışından 1dk sonra (UTC). crontab -e ile ekle.
+# PAPER varsayılan. PROJE_DIR ve PY yolunu kendine göre düzelt.
+1 0,4,8,12,16,20 * * * cd /opt/fundcase && /usr/bin/python3 prop_eval_bot.py    --once --equity 10000  >> logs/eval.log 2>&1
+1 0,4,8,12,16,20 * * * cd /opt/fundcase && /usr/bin/python3 prop_funded_bot.py  --once --equity 100000 >> logs/funded.log 2>&1
+1 0,4,8,12,16,20 * * * cd /opt/fundcase && /usr/bin/python3 sprint_bot.py       --once --equity 100    >> logs/sprint.log 2>&1

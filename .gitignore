@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*_state.json
+*_state.json.tmp
+*_log.txt
+*.log
+venv/
+.DS_Store
+research/catboost_info/
