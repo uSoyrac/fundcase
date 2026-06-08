@@ -328,8 +328,15 @@ class Portfolio:
                 f"kapalı {n}  WR %{wr:.0f}  peak ${self.risk.peak:,.0f}{vault}")
 
 
-# evren (backtest ile aynı 20 coin → Binance perp sembolleri)
+# evren: 42 coin (breadth_test ile doğrulandı — lam dose-response 23 yeni coinde +0.890,
+# 22/23 pozitif → edge genel, BTC/ETH'e özel değil). Binance/Bybit perp; HyroTrader'da işlem görür.
+# (MATIC hariç — Binance perp'te delist; live için POL'e geçilebilir.)
 UNIVERSE = ("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT",
             "AVAXUSDT", "DOTUSDT", "DOGEUSDT", "LINKUSDT", "NEARUSDT", "INJUSDT",
             "ATOMUSDT", "ARBUSDT", "OPUSDT", "UNIUSDT", "FILUSDT", "LTCUSDT",
-            "ETCUSDT", "APTUSDT")
+            "ETCUSDT", "APTUSDT",
+            # breadth genişletme (edge doğrulanmış):
+            "TRXUSDT", "AAVEUSDT", "MKRUSDT", "ALGOUSDT", "XLMUSDT", "SANDUSDT",
+            "MANAUSDT", "GRTUSDT", "CRVUSDT", "RUNEUSDT", "GALAUSDT", "IMXUSDT",
+            "DYDXUSDT", "CHZUSDT", "COMPUSDT", "SNXUSDT", "AXSUSDT", "ENJUSDT",
+            "ZILUSDT", "1INCHUSDT", "SUSHIUSDT", "ICPUSDT")
