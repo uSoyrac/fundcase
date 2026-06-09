@@ -111,7 +111,8 @@ class TradeBot:
         for sym, df in data.items():
             if df is None or sym in self.pf.positions:
                 continue
-            s = latest_signal(sym, df, getattr(self.cfg, "tp_r", 2.5))
+            s = latest_signal(sym, df, getattr(self.cfg, "tp_r", 2.5),
+                              getattr(self.cfg, "lam_min", 1.0))
             if s:
                 sigs.append(s)
         sigs.sort(key=lambda s: s.lam, reverse=True)     # en yüksek conviction önce
@@ -121,7 +122,12 @@ class TradeBot:
                 self.log(f"{'⛔ DEVRE-KESİCİ' if 'TOPLAM' in why else '⏸'}: {why}"); break
             p = self.pf.open_position(s)
             if p:
-                rp = tc.conviction_risk(s.lam, self.cfg.base_risk, self.cfg.max_risk)
+                # cushion-then-protect: yastık kurulunca taban-riski PROTECT'e düşür
+                eff_base = self.cfg.base_risk
+                cush = getattr(self.cfg, "cushion", 0.0)
+                if cush > 0 and self.pf.equity >= (self.pf.risk.start or self.pf.equity) * (1 + cush):
+                    eff_base = getattr(self.cfg, "protect_risk", self.cfg.base_risk)
+                rp = tc.conviction_risk(s.lam, eff_base, self.cfg.max_risk)
                 self.log(f"GİRİŞ {s.symbol} {'LONG' if s.direction==1 else 'SHORT'} @{s.entry:.4f} "
                          f"SL={s.sl:.4f} TP={s.tp:.4f} lam={s.lam:.2f} risk=%{rp*100:.2f}")
                 if self.live:
@@ -182,7 +188,12 @@ def run_cli(cfg: tc.BotConfig, default_equity: float):
     ap.add_argument("--once", action="store_true", help="tek döngü (cron)")
     ap.add_argument("--live", action="store_true", help="⚠️ GERÇEK emir")
     ap.add_argument("--equity", type=float, default=default_equity, help="başlangıç kasası")
+    ap.add_argument("--account", type=int, default=0, help="kohort hesap no (paralel slot; ayrı state)")
     args = ap.parse_args()
+    if args.account:   # kohort: her hesap ayrı state_file
+        base = cfg.state_file.replace("_state.json", "")
+        cfg.state_file = "%s_acc%d_state.json" % (base, args.account)
+        cfg.name = "%s_ACC%d" % (cfg.name, args.account)
     if args.live:
         cfg.live = True
         print("⚠️  LIVE mod! 5sn içinde Ctrl-C ile iptal...")

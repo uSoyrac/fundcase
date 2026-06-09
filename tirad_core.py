@@ -50,6 +50,10 @@ class BotConfig:
     stop_on_target: bool = False       # eval: hedefe ulaşınca DUR (sınav geçti)
     tp_r: float = 2.5                  # TP R-katı. Izgara: compound/Sprint→3.0 (+avgR);
                                        # fast-eval/funded→2.5 (sıklık=hedefe hızlı). SL hep 2.0×ATR.
+    lam_min: float = 1.0               # giriş lam eşiği. KOHORT-EVAL: 2.0 (OOS-robust, frekans yeterli)
+    cushion: float = 0.0               # cushion-then-protect: 0=kapalı. >0 → equity≥start×(1+cushion)
+                                       # olunca riski protect_risk'e DÜŞÜR (yastığı koru). Kohort: 0.08
+    protect_risk: float = 0.0005       # PROTECT fazı taban-riski (yastık kurulunca; hayatta-kalma)
     # funded: tetik-bazlı payout (kâr-sağma). Kanıt: +%5 erken-çek = en güvenli+en kârlı
     payout: bool = False
     payout_trigger: float = 0.05       # +%5 kârda çek (MC: %0 iflas, ~$16.5k/yıl/$100k)
@@ -118,7 +122,8 @@ class Signal:
     reason: str = ""      # GEREKÇE: neden girildi (lam/VR/yön)
 
 
-def latest_signal(symbol: str, df: pd.DataFrame, tp_r: float = TP_R) -> Optional[Signal]:
+def latest_signal(symbol: str, df: pd.DataFrame, tp_r: float = TP_R,
+                  lam_min: float = LAM_MIN) -> Optional[Signal]:
     """En son KAPANMIŞ bar için giriş sinyali (yoksa None). df: open,high,low,close,volume,
     num_trades,taker_buy_ratio — kronolojik, son satır kapanmış bar."""
     if len(df) < max(LAM_L, VR_WIN, DONCHIAN_N) + 5:
@@ -134,7 +139,7 @@ def latest_signal(symbol: str, df: pd.DataFrame, tp_r: float = TP_R) -> Optional
     elif c[i] < dl[i - 1]: d = -1
     if d == 0:
         return None
-    if not np.isfinite(lam[i]) or lam[i] <= LAM_MIN:
+    if not np.isfinite(lam[i]) or lam[i] <= lam_min:
         return None
     if lam[i] <= lam[i - 1]:        # lam YÜKSELİYOR (test_ignition: +0.100→+0.123, OOS +0.137;
         return None                 # lam-düşüyor=sönen kaskad, avgR +0.007 ~ölü)
