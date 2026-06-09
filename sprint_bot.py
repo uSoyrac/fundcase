@@ -26,7 +26,8 @@ SPRINT_CONFIG = BotConfig(
     target=0.0,            # 0 = sınırsız compound ($100→$1k→devam)
     symbols=UNIVERSE,
     live=False,            # ⚠️ güvenli varsayılan: PAPER
-    state_file="sprint_state.json",
+    tp_r=3.0,
+state_file="sprint_state.json",
 )
 
 if __name__ == "__main__":

@@ -111,7 +111,7 @@ class TradeBot:
         for sym, df in data.items():
             if df is None or sym in self.pf.positions:
                 continue
-            s = latest_signal(sym, df)
+            s = latest_signal(sym, df, getattr(self.cfg, "tp_r", 2.5))
             if s:
                 sigs.append(s)
         sigs.sort(key=lambda s: s.lam, reverse=True)     # en yüksek conviction önce

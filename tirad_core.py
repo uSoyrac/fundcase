@@ -48,6 +48,8 @@ class BotConfig:
     # hedef (challenge); 0 → sınırsız compound (kendi sermaye)
     target: float = 0.0
     stop_on_target: bool = False       # eval: hedefe ulaşınca DUR (sınav geçti)
+    tp_r: float = 2.5                  # TP R-katı. Izgara: compound/Sprint→3.0 (+avgR);
+                                       # fast-eval/funded→2.5 (sıklık=hedefe hızlı). SL hep 2.0×ATR.
     # funded: tetik-bazlı payout (kâr-sağma). Kanıt: +%5 erken-çek = en güvenli+en kârlı
     payout: bool = False
     payout_trigger: float = 0.05       # +%5 kârda çek (MC: %0 iflas, ~$16.5k/yıl/$100k)
@@ -116,7 +118,7 @@ class Signal:
     reason: str = ""      # GEREKÇE: neden girildi (lam/VR/yön)
 
 
-def latest_signal(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
+def latest_signal(symbol: str, df: pd.DataFrame, tp_r: float = TP_R) -> Optional[Signal]:
     """En son KAPANMIŞ bar için giriş sinyali (yoksa None). df: open,high,low,close,volume,
     num_trades,taker_buy_ratio — kronolojik, son satır kapanmış bar."""
     if len(df) < max(LAM_L, VR_WIN, DONCHIAN_N) + 5:
@@ -142,7 +144,7 @@ def latest_signal(symbol: str, df: pd.DataFrame) -> Optional[Signal]:
     entry = c[i]
     risk = SL_ATR * (a[i] if a[i] > 0 else entry * 0.01)
     sl = entry - d * risk
-    tp = entry + d * TP_R * risk
+    tp = entry + d * tp_r * risk
     vr_i = float(vr[i]) if np.isfinite(vr[i]) else 1.0
     yon = "LONG" if d == 1 else "SHORT"
     why = "VR<1 taze-ateşleme" if fresh else "lam≥2.2 balina-istisna"
