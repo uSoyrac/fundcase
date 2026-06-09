@@ -3,7 +3,7 @@
 PAPER_DIR=/root/tirad/paper) ŞEMASINA çevirir. ~/uploads/tirad/<bot>_state.json → ~/uploads/paper/<key>.json
 Şema: key/name/title/family/desc/start_eq/as_of/deploy/weights/stats{sharpe,cagr,maxdd,navnow,days}/
 nav[{ts,v}]/ref{oos_*}/targets{LONG,SHORT}. 1000-tabanına normalize. Saf stdlib, 3.6-uyumlu."""
-import json, os, statistics
+import json, os, statistics, glob
 from datetime import datetime, timezone
 
 SRC = os.path.dirname(os.path.abspath(__file__))            # ~/uploads/tirad
@@ -62,6 +62,40 @@ def build(st, m):
             "nav": nav, "ref": m["ref"], "targets": tgt}
 
 
+def build_cohort():
+    """5 paralel kohort hesabını TEK aggregate karta topla: geçen/patlayan/ortalama-NAV."""
+    files = sorted(glob.glob(os.path.join(SRC, "cohort_eval_acc*_state.json")))
+    navs = []; passed = 0; blown = 0
+    for fp in files:
+        try:
+            st = json.load(open(fp))
+        except Exception:
+            continue
+        eq = st.get("equity", BASE); start = st.get("risk", {}).get("start", eq) or eq
+        tot = eq + st.get("vault", 0.0)
+        navs.append(tot / start * BASE if start else BASE)
+        if st.get("passed") or tot >= start * 1.10: passed += 1
+        if tot <= start * 0.90: blown += 1
+    if not navs:
+        return None
+    k = len(navs); navnow = round(sum(navs) / k, 2)
+    nav = [{"ts": DEPLOY, "v": BASE}, {"ts": TODAY, "v": navnow}]
+    try:
+        days = max((datetime.strptime(TODAY, "%Y-%m-%d") - datetime.strptime(DEPLOY, "%Y-%m-%d")).days, 1)
+    except Exception:
+        days = 1
+    cagr = (navnow / BASE) ** (365.0 / days) - 1.0 if navnow > 0 else 0.0
+    mdd = min(0.0, navnow / BASE - 1.0)
+    desc = ("Kohort fast-pass · %d hesap (lam≥2 + cushion-then-protect, paralel) · "
+            "geçen %d · patlayan %d · ort %+.1f%% · hedef +%%10" % (k, passed, blown, (navnow / BASE - 1) * 100))
+    return {"start_eq": BASE, "as_of": TODAY, "deploy": DEPLOY, "family": "FON Kohort (fast-pass)",
+            "key": "fon_cohort", "name": "bot_fon_cohort", "title": "🟣 FON · Kohort (%d hesap)" % k,
+            "desc": desc, "weights": {"hawkes_lam": 1.0},
+            "stats": {"sharpe": 0.0, "cagr": round(cagr, 4), "maxdd": round(mdd, 4), "navnow": navnow, "days": days},
+            "nav": nav, "ref": dict(oos_sharpe=0.0, oos_cagr=0.0, oos_maxdd=0.0),
+            "targets": {"LONG": [], "SHORT": []}}
+
+
 def main():
     os.makedirs(OUT, exist_ok=True); n = 0
     for botkey, m in META:
@@ -69,6 +103,11 @@ def main():
         if not st: continue
         with open(os.path.join(OUT, m["key"] + ".json"), "w") as f:
             json.dump(build(st, m), f, ensure_ascii=False)
+        n += 1
+    c = build_cohort()
+    if c:
+        with open(os.path.join(OUT, "fon_cohort.json"), "w") as f:
+            json.dump(c, f, ensure_ascii=False)
         n += 1
     print("%d FON botu dashboard2 şemasında → %s" % (n, OUT))
 
