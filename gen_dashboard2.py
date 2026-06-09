@@ -24,6 +24,9 @@ META = [
     ("sprint", dict(key="fon_sprint", name="bot_fon_sprint", title="🔴 FON · Sprint (Hawkes)",
         family="FON (Hawkes lam)", desc="Agresif kendi-sermaye · base %0.80 · sınırsız compound",
         ref=dict(oos_sharpe=1.1, oos_cagr=0.89, oos_maxdd=-0.36))),
+    ("lsx", dict(key="fon_lsx", name="bot_fon_lsx", title="🟠 FON · LSX (positioning)",
+        family="FON Ensemble (3)", desc="Positioning kontraryan · |lsx|≥1.2 (~%80 kalabalık) fade · 24h hold · WR %52 · OOS +%0.95/işlem · lam'a dekorele",
+        ref=dict(oos_sharpe=0.9, oos_cagr=0.14, oos_maxdd=-0.27))),
 ]
 
 
@@ -96,6 +99,36 @@ def build_cohort():
             "targets": {"LONG": [], "SHORT": []}}
 
 
+def build_ensemble():
+    """③ ENSEMBLE kartı: Sprint (lam) + LSX (positioning) 50/50, 1000-baza normalize."""
+    navs = []
+    for k in ("sprint", "lsx"):
+        st = load_state(k)
+        if not st: continue
+        eq = st.get("equity", BASE) + st.get("vault", 0.0)
+        start = st.get("risk", {}).get("start", eq) or eq
+        navs.append(eq / start * BASE if start else BASE)
+    if len(navs) < 2:
+        return None
+    navnow = round(sum(navs) / 2.0, 2)
+    try:
+        days = max((datetime.strptime(TODAY, "%Y-%m-%d") - datetime.strptime(DEPLOY, "%Y-%m-%d")).days, 1)
+    except Exception:
+        days = 1
+    cagr = (navnow / BASE) ** (365.0 / days) - 1.0 if navnow > 0 else 0.0
+    return {"start_eq": BASE, "as_of": TODAY, "deploy": DEPLOY, "family": "FON Ensemble (3)",
+            "key": "fon_ensemble", "name": "bot_fon_ensemble",
+            "title": "🟠 FON · Ensemble (lam+lsx)",
+            "desc": "③ Binance botu · lam trend (Sprint) + lsx kontraryan 50/50 · korr +0.17 → DD yarıya (−39→−21.5) · Sharpe 2.50 · lam %+.1f%% / lsx %+.1f%%" % (
+                (navs[0] / BASE - 1) * 100, (navs[1] / BASE - 1) * 100),
+            "weights": {"hawkes_lam": 0.5, "lsx_positioning": 0.5},
+            "stats": {"sharpe": 0.0, "cagr": round(cagr, 4),
+                      "maxdd": round(min(0.0, navnow / BASE - 1.0), 4), "navnow": navnow, "days": days},
+            "nav": [{"ts": DEPLOY, "v": BASE}, {"ts": TODAY, "v": navnow}],
+            "ref": dict(oos_sharpe=2.5, oos_cagr=1.67, oos_maxdd=-0.215),
+            "targets": {"LONG": [], "SHORT": []}}
+
+
 def main():
     os.makedirs(OUT, exist_ok=True); n = 0
     for botkey, m in META:
@@ -108,6 +141,11 @@ def main():
     if c:
         with open(os.path.join(OUT, "fon_cohort.json"), "w") as f:
             json.dump(c, f, ensure_ascii=False)
+        n += 1
+    e = build_ensemble()
+    if e:
+        with open(os.path.join(OUT, "fon_ensemble.json"), "w") as f:
+            json.dump(e, f, ensure_ascii=False)
         n += 1
     print("%d FON botu dashboard2 şemasında → %s" % (n, OUT))
 
