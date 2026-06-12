@@ -13,6 +13,11 @@ MEKANİZMA:
   • cushion-then-protect: build %0.30 → equity +%8 yastıkta protect %0.05 (statik −%10 tabanı koru).
   • 1× kaldıraç (TEK iflas sebebi kaldıraç), TP 2.5R (sıklık=hedefe hızlı), günlük-halt %3.
 
+HYRO UYUM (site taraması 2026-06-12): custom bot İZİNLİ (kendi API key, Bybit);
+SL girişten ≤5dk (bizde anında ✓); tek-işlem ≤%40 kâr-konsantrasyonu (küçük-TP'li bizde ✓);
+low-cap konsantrasyon ≤%5 (CANLIda likit-subset kullan!); martingale/hedging yasak (bizde yok ✓);
+min 5 işlem-günü; fee geçince İADE. 2-step fiyatlar: $59/5K (EN UCUZ) · $119/10K · $249/25K.
+
 KOHORT KULLANIM (4-6 paralel hesap, her biri ayrı state):
   for n in 1 2 3 4 5; do python cohort_eval_bot.py --once --account $n; done
   → P(en az 1 hesap Step1 ≤10g) ≈ %61 (5 slot), ~haftada 1 yeni funded akışı.
@@ -104,14 +109,15 @@ BREADTH75 = (
 COHORT_CONFIG = BotConfig(
     name="COHORT_EVAL",
     lam_min=2.0,           # OOS-robust giriş filtresi (blow-tavanı + frekans yeterli)
-    base_risk=0.0020,      # BUILD %0.20 × 16 slot (breadth_final_mc: pass %63, blow ~%13-20)
-    max_risk=0.0080,       # conviction tavanı (lam→3x clip)
+    base_risk=0.0015,      # BUILD %0.15 × 16 slot — HYRO GERÇEK limitlerde (4/6) MC: pass %50/60g, blow %26-32
+                           # (%0.20 → blow %41-46 = fazla; %0.12 → blow %13-19 ama medyan 37g+timeout)
+    max_risk=0.0060,       # conviction tavanı (lam→3x clip)
     cushion=0.08,          # equity +%8 → PROTECT'e geç
     protect_risk=0.0005,   # PROTECT %0.05 (yastığı koru, statik −%10'a çarpma ~0)
     max_pos=16,            # GENİŞLİK: 118 coin → 16 bağımsız slota dağıt (çeşitlendirme=güvenilirlik)
-    daily_dd=0.05,         # HyroTrader 2-step günlük −%5
-    total_dd=0.10,         # HyroTrader 2-step STATİK −%10
-    intraday_halt=0.03,    # gün-içi −%3 → o gün dur (EOD-uçurum emniyeti)
+    daily_dd=0.04,         # HYRO GERÇEK (site 2026-06-12): günlük −%4 (eski %5 varsayımı YANLIŞTI)
+    total_dd=0.06,         # HYRO GERÇEK: max-loss −%6 (eski −%10 varsayımı YANLIŞTI)
+    intraday_halt=0.02,    # gün-içi −%2 → dur (−%4 günlüğe EOD-uçurumla değmemek için)
     trailing_floor=False,
     tp_r=2.5,              # sıklık = +%10 yastığına hızlı varış
     target=0.10,           # Step1 +%10
