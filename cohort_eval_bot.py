@@ -20,15 +20,95 @@ KOHORT KULLANIM (4-6 paralel hesap, her biri ayrı state):
 from tirad_core import BotConfig, UNIVERSE
 from tirad_runner import run_cli
 
+# GENİŞLİK-75 (breadth_tier_test: T1/T2 likit katman, lam≥2 OOS avgR +0.175/+0.123;
+# T3-ince ATILDI OOS −0.329). 118-coin evren + 16slot/%0.20 → P(pass) 53→63%, blow benzer.
+BREADTH75 = (
+    "1000BONKUSDT",
+    "1000FLOKIUSDT",
+    "1000LUNCUSDT",
+    "1000PEPEUSDT",
+    "1000SHIBUSDT",
+    "AEROUSDT",
+    "AIXBTUSDT",
+    "APEUSDT",
+    "ARUSDT",
+    "ARCUSDT",
+    "ARKMUSDT",
+    "BCHUSDT",
+    "BIOUSDT",
+    "BLURUSDT",
+    "BOMEUSDT",
+    "CAKEUSDT",
+    "CFXUSDT",
+    "DASHUSDT",
+    "DEXEUSDT",
+    "DUSKUSDT",
+    "EDUUSDT",
+    "EIGENUSDT",
+    "ENAUSDT",
+    "ENSUSDT",
+    "ETHFIUSDT",
+    "FARTCOINUSDT",
+    "FETUSDT",
+    "GRASSUSDT",
+    "HBARUSDT",
+    "JTOUSDT",
+    "JUPUSDT",
+    "KASUSDT",
+    "LDOUSDT",
+    "MOODENGUSDT",
+    "MORPHOUSDT",
+    "NEIROUSDT",
+    "ONDOUSDT",
+    "ONTUSDT",
+    "ORCAUSDT",
+    "ORDIUSDT",
+    "PENDLEUSDT",
+    "PENGUUSDT",
+    "PIPPINUSDT",
+    "PIXELUSDT",
+    "PNUTUSDT",
+    "POLUSDT",
+    "PYTHUSDT",
+    "RENDERUSDT",
+    "ROSEUSDT",
+    "SUSDT",
+    "SAGAUSDT",
+    "SEIUSDT",
+    "SPXUSDT",
+    "STRKUSDT",
+    "STXUSDT",
+    "SUIUSDT",
+    "SWARMSUSDT",
+    "TAOUSDT",
+    "THETAUSDT",
+    "TIAUSDT",
+    "TONUSDT",
+    "TRBUSDT",
+    "TRUMPUSDT",
+    "TURBOUSDT",
+    "VETUSDT",
+    "VIRTUALUSDT",
+    "WUSDT",
+    "WIFUSDT",
+    "WLDUSDT",
+    "XMRUSDT",
+    "ZECUSDT",
+    "ZENUSDT",
+    "ZEREBROUSDT",
+    "ZKUSDT",
+    "ZROUSDT",
+)
+
 # ── 🟣 KOHORT FAST-PASS CONFIG ──────────────────────────────────────────────
 COHORT_CONFIG = BotConfig(
     name="COHORT_EVAL",
     lam_min=2.0,           # OOS-robust giriş filtresi (blow-tavanı + frekans yeterli)
-    base_risk=0.0030,      # BUILD fazı %0.30 (hız kolu; %0.45'e çekilebilir, blow %25'e çıkar)
-    max_risk=0.0090,       # conviction tavanı (lam→3x clip)
+    base_risk=0.0020,      # BUILD %0.20 × 16 slot (breadth_final_mc: pass %63, blow ~%13-20)
+    max_risk=0.0080,       # conviction tavanı (lam→3x clip)
     cushion=0.08,          # equity +%8 → PROTECT'e geç
     protect_risk=0.0005,   # PROTECT %0.05 (yastığı koru, statik −%10'a çarpma ~0)
-    max_pos=6,             # eşzamanlı poz (korelasyon kapağı; aynı-yön doğal sınır)
+    max_pos=16,            # GENİŞLİK: 118 coin → 16 bağımsız slota dağıt (çeşitlendirme=güvenilirlik)
     daily_dd=0.05,         # HyroTrader 2-step günlük −%5
     total_dd=0.10,         # HyroTrader 2-step STATİK −%10
     intraday_halt=0.03,    # gün-içi −%3 → o gün dur (EOD-uçurum emniyeti)
@@ -36,7 +116,7 @@ COHORT_CONFIG = BotConfig(
     tp_r=2.5,              # sıklık = +%10 yastığına hızlı varış
     target=0.10,           # Step1 +%10
     stop_on_target=True,   # geçince DUR (Step2'ye/funded'a geç)
-    symbols=UNIVERSE,
+    symbols=tuple(UNIVERSE) + BREADTH75,
     live=False,
     state_file="cohort_eval_state.json",
 )
