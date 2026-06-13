@@ -24,6 +24,9 @@ META = [
     ("sprint", dict(key="fon_sprint", name="bot_fon_sprint", title="🔴 FON · Sprint (Hawkes)",
         family="FON (Hawkes lam)", desc="Agresif kendi-sermaye · base %0.80 · sınırsız compound",
         ref=dict(oos_sharpe=1.1, oos_cagr=0.89, oos_maxdd=-0.36))),
+    ("ensemble_eval", dict(key="fon_tirad4", name="bot_fon_tirad4", title="🎖️ TIRAD-4 KVARTET",
+        family="TIRAD-4 (4-edge)", desc="AMİRAL SİSTEM · 4 dekorele edge: lam(ateşleme)+lsx(positioning)+vwap(momentum)+regime · aile-cap+yön-netleme · MaxDD −6.3% · eval-pass ~%70 · gerçek 4/6",
+        ref=dict(oos_sharpe=2.31, oos_cagr=0.30, oos_maxdd=-0.063))),
     ("lsx", dict(key="fon_lsx", name="bot_fon_lsx", title="🟠 FON · LSX (positioning)",
         family="FON Ensemble (3)", desc="Positioning kontraryan · |lsx|≥1.2 (~%80 kalabalık) fade · 24h hold · WR %52 · OOS +%0.95/işlem · lam'a dekorele",
         ref=dict(oos_sharpe=0.9, oos_cagr=0.14, oos_maxdd=-0.27))),
@@ -57,7 +60,8 @@ def build(st, m):
     cagr = (navnow / BASE) ** (365.0 / days) - 1.0 if navnow > 0 else 0.0
     tgt = {"LONG": [], "SHORT": []}
     for sym, p in st.get("positions", {}).items():
-        tgt["LONG" if p["direction"] == 1 else "SHORT"].append(sym.replace("USDT", ""))
+        d = p.get("direction", p.get("dir", 1))   # cohort/prop="direction" · ensemble_eval="dir"
+        tgt["LONG" if d == 1 else "SHORT"].append(sym.replace("USDT", ""))
     return {"start_eq": BASE, "as_of": TODAY, "deploy": DEPLOY, "family": m["family"],
             "key": m["key"], "name": m["name"], "title": m["title"], "desc": m["desc"],
             "weights": {"hawkes_lam": 1.0}, "stats": {"sharpe": round(sharpe, 2), "cagr": round(cagr, 4),

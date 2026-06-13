@@ -18,7 +18,7 @@ BOTS = [
     ("prop_eval_fast",  "🟡 FON · Eval-Fast (lam)",   "hızlı sınav · base %0.25 · +%10"),
     ("prop_funded",     "🟢 FON · Funded (lam)",      "funded hasat · base %0.08 · +%5 çekim"),
     ("lsx",             "🟠 FON · LSX (positioning)", "aşırı-positioning kontraryan · |lsx|≥1.2 · 24h hold"),
-    ("ensemble_eval",   "🟠 FON · Ensemble-Eval (lam+lsx)", "BİRLEŞİK al-sat · lam trend + lsx kontraryan tek hesapta · dekorele → aynı blow'da %62 pass (lam-only %49) · gerçek 4/6"),
+    ("ensemble_eval",   "🎖️ TIRAD-4 KVARTET (4-edge)", "AMİRAL: 4 dekorele edge tek hesapta — lam(ateşleme)+lsx(positioning)+vwap(momentum)+regime · aile-cap+yön-netleme · MaxDD −6.3% · eval-pass ~%70 · gerçek 4/6"),
 ] + [("cohort_eval_acc%d" % i, "🟣 FON · Kohort-%d" % i,
       "fast-pass eval · lam≥2 + cushion→protect · 118-coin/16-slot") for i in range(1, 6)]
 
