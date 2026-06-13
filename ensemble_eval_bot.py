@@ -14,6 +14,7 @@ from datetime import datetime, timezone, timedelta
 from tirad_core import latest_signal, conviction_risk, BotConfig, UNIVERSE, SL_ATR
 from tirad_runner import fetch_klines
 from lsx_bot import lsx_score, COINS as LSX_COINS
+from all_signals_falsify import sig_vwap   # doğrulanmış vwap-z (OOS dose +0.63, lsx/regime'e NEG-korr)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(HERE, "ensemble_eval_state.json")
@@ -24,6 +25,10 @@ CFG = BotConfig(name="ENSEMBLE_EVAL", lam_min=2.0, base_risk=0.0015, max_risk=0.
                 cushion=0.08, protect_risk=0.0005, max_pos=12, daily_dd=0.04,
                 total_dd=0.06, intraday_halt=0.02, tp_r=2.5, target=0.10)
 LSX_THR, LSX_F, LSX_HOLD_H, COST = 1.2, 0.10, 24, 0.0014
+# panel ağırlıkları: lam %50 çekirdek, lsx %30, vwap %12 (neg-korr sigorta). regime %8 → TODO (canlı OI fetch).
+VWAP_Z, VWAP_F, VWAP_HOLD_H = 1.48, 0.04, 36
+SLEEVE_CAP = {"lam": 8, "lsx": 8, "vwap": 4, "regime": 3}
+FAM = {"lam": "mom", "vwap": "mom", "lsx": "pos", "regime": "pos"}   # aile-cap grupları
 
 
 def log(m):
@@ -105,53 +110,88 @@ def run_once():
         log("gün-halt · eq %.0f · açık %d" % (st["equity"], len(st["positions"]))); save(st); return
 
     slots = CFG.max_pos - len(st["positions"])
-    # ── 2) lam kolu (trend) ──
-    lam_cands = []
+    scount = {"lam": 0, "lsx": 0, "vwap": 0, "regime": 0}
+    for p in st["positions"].values():
+        scount[p["sleeve"]] = scount.get(p["sleeve"], 0) + 1
+
+    def can_open(sym, sleeve, d):
+        """slot + per-edge cap + AİLE-CAP (aynı coinde aynı aile yok) + YÖN-ÇAKIŞMA (ters yön açma)."""
+        if slots <= 0 or scount.get(sleeve, 0) >= SLEEVE_CAP[sleeve]:
+            return False
+        fam = FAM[sleeve]
+        p = st["positions"].get(sym)
+        if p is not None:
+            if FAM[p["sleeve"]] == fam:   # aynı coinde aynı aile (örn lsx+regime, korr +0.57) → çift-sayım
+                return False
+            if p["dir"] != d:             # ters yön (momentum-long vs positioning-short) → konservatif: açma (netleme yerine atla)
+                return False
+        return True
+
+    # ── lam (trend) + vwap (neg-korr dekorelatör) — TEK fetch'ten ──
+    lam_cands = []; vwap_cands = []
     for c in UNIVERSE:
-        sym = c if c.endswith("USDT") else c + "USDT"
-        sym = sym.replace("USDTUSDT", "USDT")
+        sym = (c if c.endswith("USDT") else c + "USDT").replace("USDTUSDT", "USDT")
         if sym in st["positions"]:
             continue
         try:
             df = fetch_klines(sym, "4h", 300)
             s = latest_signal(sym, df, CFG.tp_r)
+            vz = float(sig_vwap(df)[0][-1]); px = float(df["close"].iloc[-1])
         except Exception:
-            s = None
+            s = None; vz = float("nan"); px = None
         if s:
             lam_cands.append(s)
+        if px is not None and VWAP_Z <= vz <= 6.0:   # sadece LONG (z≥1.48); >6 = düşük-hacim std~0 artefaktı, ele
+            vwap_cands.append((sym, px, vz))
         time.sleep(0.05)
+
     lam_cands.sort(key=lambda s: s.lam, reverse=True)
     for s in lam_cands:
-        if slots <= 0:
-            break
+        if not can_open(s.symbol, "lam", s.direction):
+            continue
         risk_pct = conviction_risk(s.lam, base, CFG.max_risk)
         st["positions"][s.symbol] = {"sleeve": "lam", "dir": s.direction, "entry": s.entry,
                                      "sl": s.sl, "tp": s.tp, "risk_amt": round(st["equity"] * risk_pct, 2),
                                      "opened": now.strftime("%Y-%m-%dT%H:%M"), "reason": s.reason}
-        log("AÇ lam %s @%.6g · %s" % (s.symbol, s.entry, s.reason[:50])); slots -= 1
+        scount["lam"] += 1; slots -= 1
+        log("AÇ lam %s @%.6g · %s" % (s.symbol, s.entry, s.reason[:50]))
 
-    # ── 3) lsx kolu (positioning kontraryan, likit-subset) ──
+    # ── lsx (positioning kontraryan) ──
     for c in LSX_COINS:
         if slots <= 0:
             break
         sym = c + "USDT"
-        if sym in st["positions"]:
-            continue
         sc, lf = lsx_score(sym); time.sleep(0.15)
         if sc is None or abs(sc) < LSX_THR:
+            continue
+        d = 1 if sc > 0 else -1
+        if not can_open(sym, "lsx", d):
             continue
         try:
             df = fetch_klines(sym, "4h", 3); px = float(df["close"].iloc[-1])
         except Exception:
             continue
-        d = 1 if sc > 0 else -1
         st["positions"][sym] = {"sleeve": "lsx", "dir": d, "entry": px,
                                 "notional": round(st["equity"] * LSX_F, 2),
                                 "exit_due": (now + timedelta(hours=LSX_HOLD_H)).strftime("%Y-%m-%dT%H:%M"),
                                 "opened": now.strftime("%Y-%m-%dT%H:%M"),
                                 "reason": "lsx=%+.2f (long%% %.0f aşırı) → kontraryan %s" % (
                                     sc, lf * 100, "LONG" if d == 1 else "SHORT")}
-        log("AÇ lsx %s @%.6g · %s" % (sym, px, st["positions"][sym]["reason"])); slots -= 1
+        scount["lsx"] += 1; slots -= 1
+        log("AÇ lsx %s @%.6g · %s" % (sym, px, st["positions"][sym]["reason"]))
+
+    # ── vwap (neg-korr sigorta, sadece LONG, en güçlü z önce) ──
+    vwap_cands.sort(key=lambda x: x[2], reverse=True)
+    for sym, px, vz in vwap_cands:
+        if not can_open(sym, "vwap", 1):
+            continue
+        st["positions"][sym] = {"sleeve": "vwap", "dir": 1, "entry": px,
+                                "notional": round(st["equity"] * VWAP_F, 2),
+                                "exit_due": (now + timedelta(hours=VWAP_HOLD_H)).strftime("%Y-%m-%dT%H:%M"),
+                                "opened": now.strftime("%Y-%m-%dT%H:%M"),
+                                "reason": "vwap z=%.2f (VWAP üstü momentum) → LONG (dekorelatör)" % vz}
+        scount["vwap"] += 1; slots -= 1
+        log("AÇ vwap %s @%.6g · z=%.2f" % (sym, px, vz))
 
     save(st)
     log("döngü bitti · eq %.0f · açık %d (base %%%.2f%s)" % (
